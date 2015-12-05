@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html><meta charset="utf-8">
+<title>TripSit.me Drug Interactions Chart</title>
+<script src="//d3js.org/d3.v2.min.js" charset="utf-8"></script>
+
+<h1>TripSit.me Drug Interactions Chart</h1>
+
+<p>Order by: <select id="order">
+  <option value="name">Name</option>
+  <option value="group">Group</option>
+</select>
+
+<p>This matrix diagram is an interactive version of the <i><a href="http://wiki.tripsit.me/wiki/Drug_combinations">TripSit.me Drug Interactions Visualization</a></i>.
+
+<p>Each colored cell represents a drug interaction. Use the drop-down menu to reorder the matrix and explore the information.
+
+<p> This information has been researched by the TripSit team. The greatest effort has been made to not include misleading or incorrect information. This chart is meant as a quick reference guide, not a definitive resource on drug combinations. Be safe; use at your own risk, and in moderation.
+
+<p>Built with <a href="http://d3js.org/">d3.js</a>. If you like this visualization, it's modeled after Mike Bostock's <a href="http://bost.ocks.org/mike/miserables/"><i>Les Miserables</i> Co-Occurrence Visualization</a>..
+
+<div align="center">
+</div>
+
+<script>
+
+var margin = {top: 150, right: 0, bottom: 50, left: 150},
+    width = 600,
+    height = 600;
+
+var x = d3.scale.ordinal().rangeBands([0, width]),
+    z = d3.scale.linear().domain([0, 5]),
+    c = d3.scale.ordinal().range(['green', 'blue', 'purple', 'yellow', 'orange', 'red']);
+
+var svg = d3.select("div").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+    .style("margin-left", -margin.left + "px")
+    .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+var drugs = d3.json("tripsit.json", function(drugs) {
+  var matrix = [],
+      nodes = drugs.nodes,
+      n = nodes.length;
+
+  // Compute index per node.
+  nodes.forEach(function(node, i) {
+    node.index = i;
+    matrix[i] = d3.range(n).map(function(j) { return {x: j, y: i, z: z}; });
+  });
+
+  //Convert links to matrix
+  drugs.links.forEach(function(link) {
+    matrix[link.source][link.target].z = link.value;
+    matrix[link.target][link.source].z = link.value;
+  });
+
+  // Precompute the orders.
+  var orders = {
+    name: d3.range(n).sort(function(a, b) { return d3.ascending(nodes[a].name, nodes[b].name); }),
+    group: d3.range(n).sort(function(a, b) { return d3.ascending(nodes[a].group, nodes[b].group); }),
+    };
+
+  // The default sort order.
+  x.domain(orders.name);
+
+  svg.append("rect")
+      .attr("class", "background")
+      .attr("width", width)
+      .attr("height", height)
+      .attr("fill", "green");
+
+  var row = svg.selectAll(".row")
+      .data(matrix)
+    .enter().append("g")
+      .attr("class", "row")
+      .attr("transform", function(d, i) { return "translate(0," + x(i) + ")"; })
+      .each(row);
+
+  row.append("line")
+      .attr("x2", width);
+
+  row.append("text")
+      .attr("x", -6)
+      .attr("y", x.rangeBand() / 2)
+      .attr("text-anchor", "end")
+      .attr("font-size", "10px")
+      .text(function(d, i) { return nodes[i].name; });
+
+  var column = svg.selectAll(".column")
+      .data(matrix)
+    .enter().append("g")
+      .attr("class", "column")
+      .attr("transform", function(d, i) { return "translate(" + x(i) + ")rotate(-90)"; });
+
+  column.append("line")
+      .attr("x1", -width);
+
+  column.append("text")
+      .attr("x", 6)
+      .attr("y", x.rangeBand() / 2)
+      .attr("text-anchor", "start")
+      .attr("font-size", "10px")
+      .text(function(d, i) { return nodes[i].name; });
+
+  function row(row) {
+    var cell = d3.select(this).selectAll(".cell")
+        .data(row.filter(function(d) { return d.z; }))
+        .enter().append("rect")
+        .attr("class", "cell")
+        .attr("x", function(d) { return x(d.x); })
+        .attr("width", x.rangeBand())
+        .attr("height", x.rangeBand())
+        .style("fill", function(d) { return c(d.z)});
+  }
+
+//on mouseover, add an additional tooltip; what the interaction is called if there is one, more info
+
+  d3.select("#order").on("change", function() {
+    clearTimeout(timeout);
+    order(this.value);
+  });
+
+  function order(value) {
+    x.domain(orders[value]);
+
+    var t = svg.transition().duration(1500);
+
+    t.selectAll(".row")
+        .delay(function(d, i) { return x(i) * 4; })
+        .attr("transform", function(d, i) { return "translate(0," + x(i) + ")"; })
+      .selectAll(".cell")
+        .delay(function(d) { return x(d.x) * 4; })
+        .attr("x", function(d) { return x(d.x); });
+
+    t.selectAll(".column")
+        .delay(function(d, i) { return x(i) * 4; })
+        .attr("transform", function(d, i) { return "translate(" + x(i) + ")rotate(-90)"; });
+  }
+
+  var timeout = setTimeout(function() {
+    order("group");
+    d3.select("#order").property("selectedIndex", 0).node().focus();
+  }, 3000);
+});
+
+</script>
